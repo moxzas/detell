@@ -1,0 +1,32 @@
+{
+  "name": "detell",
+  "version": "0.1.0",
+  "description": "Strip the AI-writing signature from text, plus a shared knowledge base of launch/engagement learnings. Callable as a library or a CLI by any of my projects.",
+  "type": "module",
+  "license": "UNLICENSED",
+  "private": true,
+  "author": "moxzas",
+  "main": "lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./lib/detell.js": "./lib/detell.js"
+  },
+  "bin": {
+    "detell": "bin/detell.js"
+  },
+  "files": [
+    "lib",
+    "bin",
+    "knowledge"
+  ],
+  "scripts": {
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/moxzas/detell.git"
+  }
+}
