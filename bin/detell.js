@@ -14,7 +14,7 @@
 import { readFileSync, writeFileSync, statSync, readdirSync, existsSync } from "node:fs";
 import { join, extname, relative, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { clean, flags, emDashCount } from "../lib/detell.js";
+import { cleanProse, flags, emDashCount, emDashesInProse } from "../lib/detell.js";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const KNOWLEDGE = join(ROOT, "knowledge");
@@ -53,17 +53,21 @@ function collect(targets) {
 
 function scanFile(path, { fix, warmth }) {
   const original = readFileSync(path, "utf8");
-  const cleaned = clean(original);
-  const structural = flags(cleaned, { warmth });
-  const before = emDashCount(original);
+  const cleaned = cleanProse(original);       // file-safe: preserves newlines/code
+  // Drop the punctuation-survivor flags in file mode: em-dashes-in-code are
+  // reported via `remaining`, and semicolons are valid in files (we don't touch
+  // them), so flagging every one is noise. Keep the genuine structural tells.
+  const structural = flags(cleaned, { warmth })
+    .filter((f) => f.type !== "semicolon left" && f.type !== "em-dash left");
   let wrote = false;
   if (fix && cleaned !== original) { writeFileSync(path, cleaned); wrote = true; }
+  const current = fix ? cleaned : original;
   return {
     file: path,
-    emDashesBefore: before,
-    emDashesAfter: emDashCount(fix ? cleaned : original),
+    emDashesBefore: emDashCount(original),
+    resolvable: cleaned !== original,          // prose fixes are available
+    remaining: emDashesInProse(cleaned),       // prose em-dashes cleanProse couldn't resolve (rare)
     fixed: wrote,
-    changedByClean: cleaned !== original,
     flags: structural,
   };
 }
@@ -86,13 +90,16 @@ function help() {
   console.log(`detell — strip the AI-writing signature, and the shared knowledge base
 
 Usage:
-  detell <files/dirs...>          scan for AI tells (exit 1 if any found)
-  detell --fix <files/dirs...>    apply deterministic cleanup in place
-  detell --json <files/dirs...>   machine-readable report
+  detell <files/dirs...>          scan; exit 1 if punctuation fixes are available
+  detell --fix <files/dirs...>    apply the file-safe cleanup in place
+  detell --strict <files/dirs...> also fail on structural flags (not just em-dashes)
   detell --warmth <files/dirs...> also flag power-without-warmth openers
+  detell --json <files/dirs...>   machine-readable report
   detell notes [name]             list, or print, a knowledge note
   detell --help
 
+--fix is file-safe: it preserves newlines, never rewrites semicolons, and skips
+anything inside \`\`\` fences or \`inline code\`, so it won't mangle code samples.
 Directories are walked for ${[...TEXT_EXT].join(", ")}; named files are scanned as-is.`);
 }
 
@@ -105,6 +112,7 @@ function main() {
   const fix = argv.includes("--fix");
   const json = argv.includes("--json");
   const warmth = argv.includes("--warmth");
+  const strict = argv.includes("--strict"); // also gate on structural flags
   const targets = argv.filter((a) => !a.startsWith("--"));
   if (targets.length === 0) { console.error("detell: no files given"); process.exit(2); }
 
@@ -116,18 +124,22 @@ function main() {
   } else {
     for (const r of results) {
       const rel = relative(process.cwd(), r.file) || r.file;
+      const n = r.emDashesBefore;
       const bits = [];
-      if (r.fixed) bits.push(`cleaned (${r.emDashesBefore} em-dash${r.emDashesBefore === 1 ? "" : "es"} fixed)`);
-      else if (r.changedByClean) bits.push(`${r.emDashesBefore} em-dash${r.emDashesBefore === 1 ? "" : "es"} + punctuation (run --fix)`);
+      if (r.fixed) bits.push(`cleaned (${n} em-dash${n === 1 ? "" : "es"} + quotes fixed)`);
+      else if (r.resolvable) bits.push(`${n} em-dash${n === 1 ? "" : "es"}/quote fix${n === 1 ? "" : "es"} available (run --fix)`);
+      if (r.remaining && fix) bits.push(`${r.remaining} prose em-dash${r.remaining === 1 ? "" : "es"} unresolved (manual)`);
       if (r.flags.length) bits.push(`${r.flags.length} structural flag${r.flags.length === 1 ? "" : "s"}`);
-      const status = bits.length ? bits.join(", ") : "clean";
-      console.log(`${status === "clean" ? "  ok " : "  ⚑  "}${rel}  ${status === "clean" ? "" : "— " + status}`);
-      for (const f of r.flags) console.log(`        ${f.type}: ${f.hint}${f.snippet ? `  [${f.snippet}]` : ""}`);
+      const clean = bits.length === 0;
+      console.log(`${clean ? "  ok  " : "  ⚑   "}${rel}${clean ? "" : "  — " + bits.join(", ")}`);
+      for (const f of r.flags) console.log(`         ${f.type}: ${f.hint}${f.snippet ? `  [${f.snippet}]` : ""}`);
     }
   }
 
-  // exit nonzero if anything still needs attention (unresolved em-dashes or flags)
-  const dirty = results.some((r) => r.emDashesAfter > 0 || r.flags.length > 0 || (!fix && r.changedByClean));
+  // Gate (exit 1) on the deterministic axis by default: unresolved/available
+  // punctuation fixes. Structural flags are advisory unless --strict.
+  const dirty = results.some((r) =>
+    r.remaining > 0 || (!fix && r.resolvable) || (strict && r.flags.length > 0));
   process.exit(dirty ? 1 : 0);
 }
 
