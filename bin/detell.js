@@ -57,8 +57,10 @@ function scanFile(path, { fix, warmth }) {
   // Drop the punctuation-survivor flags in file mode: em-dashes-in-code are
   // reported via `remaining`, and semicolons are valid in files (we don't touch
   // them), so flagging every one is noise. Keep the genuine structural tells.
+  // em-dash survivors are surfaced via `remaining` (emDashesInProse) instead of a
+  // flag; prose semicolons now come through as their own "semicolon in prose" flag.
   const structural = flags(cleaned, { warmth })
-    .filter((f) => f.type !== "semicolon left" && f.type !== "em-dash left");
+    .filter((f) => f.type !== "em-dash left");
   let wrote = false;
   if (fix && cleaned !== original) { writeFileSync(path, cleaned); wrote = true; }
   const current = fix ? cleaned : original;
