@@ -15,6 +15,9 @@ detell notes show-hn-design-slop  # print one
 - **`ai-text-tells.md`** — the text axis: what the library detects and why.
 - **`show-hn-design-slop.md`** — the design axis: the Krebs 16-pattern Show HN
   audit, as a pre-launch checklist.
+- **`going-public-git-hygiene.md`** — the history axis: commit messages, old
+  blobs, and repo metadata are public too; audit them before flipping a repo
+  public.
 
 ## Adding a note
 When a project learns something worth keeping (a new tell, a room's rule, a
