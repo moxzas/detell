@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { clean, cleanProse, flags, detell, emDashCount, emDashesInProse, looksLikeSlop, looksLikeFarm } from "../lib/index.js";
+import { clean, cleanProse, flags, detell, emDashCount, emDashesInProse, semicolonsInProse, looksLikeSlop, looksLikeFarm } from "../lib/index.js";
 
 test("clean removes em-dashes", () => {
   const out = clean("It does the legwork — groups the files — and never touches originals.");
@@ -33,6 +33,23 @@ test("flags catches not-X-but-Y", () => {
 test("flags catches a surviving em-dash", () => {
   const f = flags("this — somehow — survived");
   assert.ok(f.some((x) => x.type === "em-dash left"));
+});
+
+test("flags catches a semicolon in prose", () => {
+  const f = flags("The engine is real; the data is illustrative.");
+  assert.ok(f.some((x) => x.type === "semicolon in prose"));
+});
+
+test("flags ignores semicolons inside code (fence and inline)", () => {
+  const fenced = flags("clean prose here.\n```\nfor (i = 0; i < n; i++) {}\n```\n");
+  assert.ok(!fenced.some((x) => x.type === "semicolon in prose"), "fenced code ignored");
+  const inline = flags("call `a(); b()` and keep the prose clean here.");
+  assert.ok(!inline.some((x) => x.type === "semicolon in prose"), "inline code ignored");
+});
+
+test("semicolonsInProse counts prose only, skipping code", () => {
+  assert.equal(semicolonsInProse("one; two; three."), 2);
+  assert.equal(semicolonsInProse("a `for (;;)` loop and\n```\nx; y;\n```\n"), 0);
 });
 
 test("detell returns cleaned text and flags together", () => {

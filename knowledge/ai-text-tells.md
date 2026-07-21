@@ -27,14 +27,20 @@ Two layers, and the order matters:
   a short tail becomes a comma. **Never a semicolon** — the usual fallback is
   itself a tell. A blind swap breaks grammar, which is why this is grammar-aware
   and still flags anything it could not resolve.
-- **Semicolons** joining clauses → period + capital (a rare list-semicolon wants
-  a comma instead, so it is also flagged).
+- **Semicolons** in a comment string, joining clauses → period + capital (a rare
+  list-semicolon wants a comma instead, so it is also flagged). In a *file*,
+  semicolons are flagged rather than auto-fixed (see below), because the file may
+  contain code where a semicolon is just syntax.
 
 ## Flagged by `flags()` (structural — a human edits, code never rewrites)
 Rewriting rhythm or structure risks stripping meaning, so these are surfaced, not
 auto-changed:
 - **"not X, but Y"** — the single most recognizable construction. Recast as a
   plain claim.
+- **Semicolons in prose.** A semicolon joining two clauses reads as Grammarly or
+  LLM polish (people who hand-punctuate rarely reach for it). It is prose-aware,
+  so a semicolon inside a code sample never fires. Split into two sentences, or
+  use a comma.
 - **Throat-clearing openers** — "here's the thing", "the thing is", "that said",
   "make no mistake". Cut it; lead with the point.
 - **Hedge adverbs** — "notably, arguably, importantly, essentially, ultimately,
