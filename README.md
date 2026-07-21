@@ -7,8 +7,8 @@ every project can **call** and **contribute back to**.
 Two halves:
 - **`lib/`** — the callable library (`clean()`, `flags()`, `detell()`, plus
   slop/farm/appropriation detectors).
-- **`knowledge/`** — the durable notes (`ai-text-tells.md`, `show-hn-design-slop.md`),
-  readable from the CLI.
+- **`knowledge/`** — the durable notes (`ai-text-tells.md`, `show-hn-design-slop.md`,
+  `going-public-git-hygiene.md`), readable from the CLI.
 
 The goal is **human perception, not detector evasion**: em-dashes, "not X but Y",
 throat-clearing, hedge adverbs and LLM pet words read as machine-written to a
