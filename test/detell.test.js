@@ -158,6 +158,8 @@ test("prose counters ignore style= and on*= attribute code, but not content=", (
   // HTML entities end in a semicolon and are not prose punctuation.
   assert.equal(semicolonsInProse("<p>Let&rsquo;s fix that. &copy; 2026</p>"), 0);
   assert.equal(semicolonsInProse("<p>Let&rsquo;s be clear; this one counts.</p>"), 1);
+});
+
 test(".detellignore excludes machine-facing paths, by glob, for named files too", async () => {
   // Surfaced by productbrain: a sweep reached llms.txt and the LLM API guide,
   // which are parsed by agents rather than read by a person forming an
