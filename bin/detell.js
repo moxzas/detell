@@ -12,7 +12,7 @@
 // reported for a human, never auto-rewritten.
 
 import { readFileSync, writeFileSync, statSync, readdirSync, existsSync } from "node:fs";
-import { join, extname, relative, dirname } from "node:path";
+import { join, extname, relative, dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { cleanProse, flags, emDashCount, emDashesInProse } from "../lib/detell.js";
 
@@ -35,17 +35,55 @@ function walk(target, acc) {
   return acc;
 }
 
+// .detellignore — one glob per line, # comments, blank lines ignored. Read from
+// the current working directory.
+//
+// WHY: not all public text is written for a human to judge. llms.txt and
+// llms-full.txt are the agent-discovery standard, an API contract written for a
+// machine to parse. A dash there costs nothing, because no reader is forming an
+// impression of who wrote it. detell is about HUMAN perception, so sweeping
+// machine-addressed docs is effort spent where the tell does not land, and it
+// risks editing a contract for style. Excluded by the project that owns them,
+// not guessed at by filename here. (productbrain, 2026-09-26.)
+function loadIgnore(cwd) {
+  const f = join(cwd, ".detellignore");
+  if (!existsSync(f)) return [];
+  return readFileSync(f, "utf8")
+    .split("\n")
+    .map((l) => l.trim())
+    .filter((l) => l && !l.startsWith("#"))
+    .map((pat) => {
+      // Minimal glob: * within a segment, ** across segments, leading ./ ignored.
+      const clean = pat.replace(/^\.\//, "");
+      const re = clean
+        .replace(/[.+^${}()|[\]\\]/g, "\\$&")
+        .replace(/\*\*/g, "\u0000")
+        .replace(/\*/g, "[^/]*")
+        .replace(/\u0000/g, ".*");
+      return new RegExp(`^${re}$`);
+    });
+}
+
+function ignored(path, patterns, cwd) {
+  if (patterns.length === 0) return false;
+  const rel = relative(cwd, resolve(path)) || path;
+  return patterns.some((re) => re.test(rel));
+}
+
 function collect(targets) {
+  const cwd = process.cwd();
+  const patterns = loadIgnore(cwd);
   const files = new Set();
+  const add = (f) => { if (!ignored(f, patterns, cwd)) files.add(f); };
   for (const t of targets) {
     if (!existsSync(t)) { console.error(`detell: no such path: ${t}`); continue; }
     const st = statSync(t);
     if (st.isDirectory()) {
       const found = new Set();
       walk(t, found);
-      for (const f of found) if (TEXT_EXT.has(extname(f).toLowerCase())) files.add(f);
+      for (const f of found) if (TEXT_EXT.has(extname(f).toLowerCase())) add(f);
     } else {
-      files.add(t); // named file: any extension
+      add(t); // named file: any extension
     }
   }
   return [...files].sort();
@@ -102,7 +140,12 @@ Usage:
 
 --fix is file-safe: it preserves newlines, never rewrites semicolons, and skips
 anything inside \`\`\` fences or \`inline code\`, so it won't mangle code samples.
-Directories are walked for ${[...TEXT_EXT].join(", ")}; named files are scanned as-is.`);
+Directories are walked for ${[...TEXT_EXT].join(", ")}; named files are scanned as-is.
+
+A .detellignore in the working directory excludes paths (one glob per line,
+# comments). Use it for text written for machines rather than people: llms.txt,
+an agent/API contract, generated mirrors. detell judges human perception, so a
+dash in a file no human reads for impression is not a tell.`);
 }
 
 function main() {
