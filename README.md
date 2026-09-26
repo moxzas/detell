@@ -25,7 +25,24 @@ detell notes [name]             # read the knowledge base
 ```
 
 Directories are walked for `.md .markdown .mdx .html .htm .txt`; a named file of
-any extension is scanned as-is. Because it's one binary, a Swift, Dart, or Python
+any extension is scanned as-is.
+
+### `.detellignore`
+
+One glob per line, `#` comments, read from the working directory. It applies to
+named files as well as walked ones.
+
+```
+# text written for machines, not for a human forming an impression
+public/llms.txt
+public/llms-full.txt
+docs/LLM_GUIDE.md
+```
+
+Use it for copy a machine parses rather than a person reads: an agent-discovery
+`llms.txt`, an API contract, generated mirrors. detell judges **human
+perception**, so a dash in a file nobody reads for impression is not a tell, and
+sweeping one risks editing a contract for style. Because it's one binary, a Swift, Dart, or Python
 project shells out to it the same way a Node one imports it. Wire it into a
 pre-commit hook or CI step and it gates the punctuation tells automatically:
 

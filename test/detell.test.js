@@ -1,6 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { clean, cleanProse, flags, detell, emDashCount, emDashesInProse, semicolonsInProse, looksLikeSlop, looksLikeFarm } from "../lib/index.js";
+import { fileURLToPath } from "node:url";
+import { dirname, join as pjoin } from "node:path";
+const BIN = pjoin(dirname(fileURLToPath(import.meta.url)), "..", "bin", "detell.js");
 
 test("clean removes em-dashes", () => {
   const out = clean("It does the legwork — groups the files — and never touches originals.");
@@ -155,4 +158,46 @@ test("prose counters ignore style= and on*= attribute code, but not content=", (
   // HTML entities end in a semicolon and are not prose punctuation.
   assert.equal(semicolonsInProse("<p>Let&rsquo;s fix that. &copy; 2026</p>"), 0);
   assert.equal(semicolonsInProse("<p>Let&rsquo;s be clear; this one counts.</p>"), 1);
+test(".detellignore excludes machine-facing paths, by glob, for named files too", async () => {
+  // Surfaced by productbrain: a sweep reached llms.txt and the LLM API guide,
+  // which are parsed by agents rather than read by a person forming an
+  // impression. A dash there is not a tell, and editing a contract for style is
+  // a real risk. The project that owns the files declares them, rather than
+  // detell guessing from filenames.
+  const { mkdtempSync, writeFileSync, mkdirSync, rmSync } = await import("node:fs");
+  const { tmpdir } = await import("node:os");
+  const { join } = await import("node:path");
+  const { execFileSync } = await import("node:child_process");
+
+  const dir = mkdtempSync(join(tmpdir(), "detell-ignore-"));
+  try {
+    mkdirSync(join(dir, "public"), { recursive: true });
+    const withTell = "A sentence — with a tell.\n";
+    writeFileSync(join(dir, "public", "llms.txt"), withTell);
+    writeFileSync(join(dir, "GUIDE.md"), withTell);
+    writeFileSync(join(dir, "README.md"), withTell);
+    writeFileSync(join(dir, ".detellignore"), "# machines read these\npublic/*.txt\nGUIDE.md\n");
+
+    const run = (args) => {
+      try {
+        return { code: 0, out: execFileSync(process.execPath, [BIN, ...args], { cwd: dir, encoding: "utf8" }) };
+      } catch (e) {
+        return { code: e.status, out: (e.stdout || "") + (e.stderr || "") };
+      }
+    };
+
+    // A named file is normally scanned whatever its extension. Ignore still wins,
+    // which is the case that matters: an agent runs `detell docs/GUIDE.md`.
+    const named = run(["GUIDE.md", "public/llms.txt"]);
+    assert.equal(named.code, 0, "ignored files must not fail the gate");
+    assert.ok(!named.out.includes("GUIDE.md"), "ignored named file should not be reported");
+
+    // A walk skips them too, and still catches the file that is in scope.
+    const walked = run(["."]);
+    assert.ok(walked.out.includes("README.md"), "non-ignored file must still be flagged");
+    assert.ok(!walked.out.includes("llms.txt"), "ignored file must not appear in a walk");
+    assert.equal(walked.code, 1, "a real tell in a scanned file still fails");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
