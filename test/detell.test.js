@@ -105,3 +105,54 @@ test("cleanProse does not alter numbers", () => {
   const nums = (s) => (s.match(/[0-9]+([.,][0-9]+)*/g) || []).join("|");
   assert.equal(nums(cleanProse(src)), nums(src));
 });
+
+test("prose counters ignore HTML <script> and <style> bodies", () => {
+  // Surfaced by productbrain: every marketing page carries an inline analytics
+  // snippet, and its minified JS tripped the semicolon rule on all of them, so
+  // the real prose flags were buried in noise.
+  const page = [
+    "<h1>Plan with your agent</h1>",
+    "<script>",
+    "  !function(t,e){var o,n,p,r;e.__SV||(window.posthog=e,e._i=[]);}(document,window);",
+    "</script>",
+    "<style>",
+    "  .hero { color: #fff; font-weight: 600; }",
+    "</style>",
+    "<p>Nothing here is a tell.</p>",
+  ].join("\n");
+  assert.equal(semicolonsInProse(page), 0);
+  assert.equal(emDashesInProse(page), 0);
+
+  // Prose OUTSIDE the blocks still counts, and a dash inside them still does not.
+  const mixed = [
+    "<p>This sentence has a tell; it should be caught.</p>",
+    "<script>var a = 1; var b — 2;</script>",
+  ].join("\n");
+  assert.equal(semicolonsInProse(mixed), 1);
+  assert.equal(emDashesInProse(mixed), 0);
+
+  // A page with no script/style is untouched by the masking.
+  assert.equal(semicolonsInProse("<p>one; two</p>"), 1);
+});
+
+test("prose counters ignore style= and on*= attribute code, but not content=", () => {
+  // `style="position:relative;overflow:hidden;"` is two semicolons of CSS, and
+  // an onclick handler is JS. Neither is prose. A meta description is.
+  const page = [
+    '<div style="position:relative;overflow:hidden;">',
+    `<a onclick="track({tier:'free'}); go();">Start</a>`,
+    "</div>",
+  ].join("\n");
+  assert.equal(semicolonsInProse(page), 0);
+
+  // content=, alt= and title= are read by people, so they stay in scope.
+  assert.equal(
+    semicolonsInProse('<meta name="description" content="One thing; then another" />'),
+    1,
+  );
+  assert.equal(emDashesInProse('<meta name="description" content="A — B" />'), 1);
+
+  // HTML entities end in a semicolon and are not prose punctuation.
+  assert.equal(semicolonsInProse("<p>Let&rsquo;s fix that. &copy; 2026</p>"), 0);
+  assert.equal(semicolonsInProse("<p>Let&rsquo;s be clear; this one counts.</p>"), 1);
+});
