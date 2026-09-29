@@ -28,6 +28,18 @@ test("clean does not alter numbers", () => {
   assert.equal(nums(out), nums(src));
 });
 
+test("clean leaves spaced en-dash ranges alone (dates, years, days, times)", () => {
+  for (const r of ["Dec 2024 – Jan 2025", "2021 – 2023", "2023 – current", "Jul 2026 – Present", "Mon – Fri", "9am – 5pm"]) {
+    assert.ok(clean(`Bartender | ${r}`).includes(r), r);
+    assert.ok(cleanProse(`Bartender | ${r}\n`).includes(r), r);
+  }
+});
+
+test("clean still resolves a spaced en dash used as an em dash", () => {
+  const out = clean("It ships today – the rest can wait.");
+  assert.ok(!/[–—]/.test(out), out);
+});
+
 test("flags catches not-X-but-Y", () => {
   const f = flags("It's not about speed, but about clarity.");
   assert.ok(f.some((x) => x.type === "not-X-but-Y"));
